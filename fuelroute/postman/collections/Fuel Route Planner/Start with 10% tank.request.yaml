@@ -1,0 +1,10 @@
+$kind: http-request
+url: "{{base_url}}/api/route/?start=Chicago, IL&finish=Indianapolis, IN&starting_fuel_percent=10"
+method: GET
+headers:
+  Content-Type: application/json
+queryParams:
+  start: Chicago, IL
+  finish: Indianapolis, IN
+  starting_fuel_percent: "10"
+order: 5000

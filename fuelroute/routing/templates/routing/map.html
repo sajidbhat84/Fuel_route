@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Fuel route planner</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  body{margin:0;font:14px/1.4 system-ui,sans-serif;display:flex;flex-direction:column;height:100vh}
+  form{display:flex;gap:8px;padding:10px;background:#f4f4f5;border-bottom:1px solid #ddd;flex-wrap:wrap}
+  input{padding:6px 8px;border:1px solid #bbb;border-radius:6px;min-width:200px}
+  button{padding:6px 14px;border:0;border-radius:6px;background:#1d4ed8;color:#fff;cursor:pointer}
+  #main{flex:1;display:flex;min-height:0}
+  #map{flex:1}
+  #side{width:340px;overflow:auto;padding:12px;border-left:1px solid #ddd}
+  .stop{border:1px solid #e4e4e7;border-radius:8px;padding:8px;margin-bottom:8px}
+  .num{display:inline-block;background:#dc2626;color:#fff;border-radius:50%;width:22px;height:22px;text-align:center;font-weight:600;margin-right:6px}
+  .total{font-size:18px;font-weight:600}
+  .err{color:#b91c1c}
+  @media(max-width:760px){#main{flex-direction:column}#side{width:auto;height:40%;border-left:0}}
+</style>
+</head>
+<body>
+<form id="f">
+  <input name="start" placeholder="Start (e.g. New York, NY)" value="{{ start }}" required>
+  <input name="finish" placeholder="Finish (e.g. Los Angeles, CA)" value="{{ finish }}" required>
+  <button>Plan route</button>
+</form>
+<div id="main"><div id="map"></div><div id="side">Enter a start and finish within the USA.</div></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const map = L.map('map').setView([39.5, -98.35], 4);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 18, attribution: '&copy; OpenStreetMap contributors'}).addTo(map);
+let layer;
+const side = document.getElementById('side');
+const money = n => '$' + n.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+async function plan(start, finish) {
+  side.textContent = 'Planning…';
+  const res = await fetch('/api/route/?' + new URLSearchParams({start, finish}));
+  const data = await res.json();
+  if (!res.ok) { side.innerHTML = '<p class="err">' + esc(data.error.message) + '</p>'; return; }
+  if (layer) layer.remove();
+  layer = L.geoJSON(data.route, {
+    style: f => ({color: '#2563eb', weight: 4}),
+    pointToLayer: (f, ll) => {
+      const k = f.properties.kind;
+      if (k === 'fuel_stop') return L.marker(ll, {icon: L.divIcon({className: '', iconSize: [26, 26],
+        html: '<div style="background:#dc2626;color:#fff;border-radius:50%;width:26px;height:26px;line-height:26px;text-align:center;font-weight:700;border:2px solid #fff">' + f.properties.order + '</div>'})});
+      return L.circleMarker(ll, {radius: 8, color: '#fff', weight: 2, fillOpacity: 1, fillColor: k === 'start' ? '#16a34a' : '#111827'});
+    },
+    onEachFeature: (f, l) => {
+      const p = f.properties;
+      if (p.kind === 'fuel_stop') l.bindPopup('<b>' + esc(p.name) + '</b><br>' + esc(p.city) + ', ' + esc(p.state) +
+        '<br>$' + p.price_per_gallon.toFixed(3) + '/gal &middot; ' + p.gallons_purchased + ' gal &middot; ' + money(p.cost));
+      else if (p.label) l.bindPopup(esc(p.kind + ': ' + p.label));
+    }
+  }).addTo(map);
+  map.fitBounds(layer.getBounds().pad(0.1));
+  const s = data.summary;
+  side.innerHTML = '<div class="total">' + money(s.total_fuel_cost) + ' fuel</div>' +
+    '<div>' + s.distance_miles.toLocaleString() + ' mi &middot; ' + s.total_gallons_purchased + ' gal purchased &middot; ' + s.fuel_stops + ' stop(s)</div><hr>' +
+    (data.fuel_stops.length ? data.fuel_stops.map(x => '<div class="stop"><span class="num">' + x.order + '</span><b>' + esc(x.station.name) + '</b><br>' +
+      esc(x.station.city) + ', ' + esc(x.station.state) + ' &middot; mile ' + x.route_mile + '<br>' +
+      '$' + x.price_per_gallon.toFixed(3) + '/gal &times; ' + x.gallons_purchased + ' gal = <b>' + money(x.cost) + '</b></div>').join('')
+      : '<p>No fuel stop needed — the starting tank covers this trip.</p>') +
+    '<small>' + data.meta.elapsed_ms + ' ms &middot; routing API calls: ' + data.meta.routing_api_calls + '</small>';
+}
+document.getElementById('f').addEventListener('submit', e => {
+  e.preventDefault();
+  const d = new FormData(e.target);
+  history.replaceState(null, '', '?' + new URLSearchParams(d));
+  plan(d.get('start'), d.get('finish'));
+});
+const f0 = document.getElementById('f');
+if (f0.start.value && f0.finish.value) plan(f0.start.value, f0.finish.value);
+</script>
+</body>
+</html>

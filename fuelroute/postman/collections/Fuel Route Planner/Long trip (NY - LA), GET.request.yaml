@@ -1,0 +1,10 @@
+$kind: http-request
+name: Long trip (NY -> LA), GET
+url: "{{base_url}}/api/route/?start=New York, NY&finish=Los Angeles, CA"
+method: GET
+headers:
+  Content-Type: application/json
+queryParams:
+  start: New York, NY
+  finish: Los Angeles, CA
+order: 1000

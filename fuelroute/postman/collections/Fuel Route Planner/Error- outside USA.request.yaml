@@ -1,0 +1,10 @@
+$kind: http-request
+name: "Error: outside USA"
+url: "{{base_url}}/api/route/?start=Chicago, IL&finish=51.5,-0.12"
+method: GET
+headers:
+  Content-Type: application/json
+queryParams:
+  start: Chicago, IL
+  finish: 51.5,-0.12
+order: 6000

@@ -1,0 +1,5 @@
+-r requirements.txt
+# only needed to regenerate routing/data/*.csv via `manage.py build_stations`
+pandas>=2.2
+geonamescache>=2.0
+zipcodes>=1.3
